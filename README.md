@@ -22,7 +22,7 @@ HTMLs files with JS come from [SeleniumCrawler](https://github.com/AndreuJove/se
 - 3) Run the command: 
         $ git clone https://github.com/AndreuJove/website_analysis.
 - 4) Taking for granted that you have Python installed in your computer. If not go to: https://www.python.org/downloads/.
-- 5) Once you have Python, install requirements.txt:
+- 5) Once you have Python, install requirements.txt:\n
         $ pip3 install -r requirements.txt
 - 5) Finally run the following command. Input percentage to separate static websites (no use of JS) and dynamic websites can be changed, the recommendation is 0-4.
         $ python3 main.py -input_percentage 4
@@ -40,7 +40,7 @@ HTMLs files with JS come from [SeleniumCrawler](https://github.com/AndreuJove/se
 
 ## Authors
 
-Andreu Jové
+Andreu Jové (andreujove@gmail.com)
 
 <br />
 
