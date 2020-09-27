@@ -19,10 +19,10 @@ HTMLs files with JS come from [SeleniumCrawler](https://github.com/AndreuJove/se
 
 - 1) Open terminal.
 - 2) Go to the current directory where you want the cloned directory to be added using 'cd'.
-- 3) Run the command: 
+- 3) Run the command:__
         $ git clone https://github.com/AndreuJove/website_analysis.
 - 4) Taking for granted that you have Python installed in your computer. If not go to: https://www.python.org/downloads/.
-- 5) Once you have Python, install requirements.txt:\n
+- 5) Once you have Python, install requirements.txt:<br />
         $ pip3 install -r requirements.txt
 - 5) Finally run the following command. Input percentage to separate static websites (no use of JS) and dynamic websites can be changed, the recommendation is 0-4.
         $ python3 main.py -input_percentage 4
