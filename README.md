@@ -8,9 +8,9 @@ HTMLs files without JS come from [mastercrawlerTFG](https://github.com/AndreuJov
 HTMLs files with JS come from [SeleniumCrawler](https://github.com/AndreuJove/seleniumCrawler).
 
 #### Output:
-- JSON file that contains all the dynamic percentages of the among of websites. The file will be saved in output_data directory as:
+- JSON file that contains all the dynamic percentages of the among of websites. The file will be saved in output_data directory as:<br />
         all_dynamic_percentages.json
-- JSON file of the dynamic percentages of the primary classification about domains. The file will be saved in output_data directory as:
+- JSON file of the dynamic percentages of the primary classification about domains. The file will be saved in output_data directory as:<br />
         dynamic_percentages_domains.json
 <br />
 
@@ -19,12 +19,12 @@ HTMLs files with JS come from [SeleniumCrawler](https://github.com/AndreuJove/se
 
 - 1) Open terminal.
 - 2) Go to the current directory where you want the cloned directory to be added using 'cd'.
-- 3) Run the command:__
+- 3) Run the command:<br />
         $ git clone https://github.com/AndreuJove/website_analysis.
 - 4) Taking for granted that you have Python installed in your computer. If not go to: https://www.python.org/downloads/.
 - 5) Once you have Python, install requirements.txt:<br />
         $ pip3 install -r requirements.txt
-- 5) Finally run the following command. Input percentage to separate static websites (no use of JS) and dynamic websites can be changed, the recommendation is 0-4.
+- 5) Finally run the following command. Input percentage to separate static websites (no use of JS) and dynamic websites can be changed, the recommendation is a number between 0-4:<br />
         $ python3 main.py -input_percentage 4
 <br />
 
