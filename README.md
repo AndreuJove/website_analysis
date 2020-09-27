@@ -4,8 +4,9 @@ This software compares HTMLs with and without JavaScript of the same website. Af
 
 #### Input:
 - JSON files that contain the HTML with and without JavaScript rendered of the same website. 
-HTMLs files without JS come from [mastercrawlerTFG](https://github.com/AndreuJove/mastercrawlerTFG).
-HTMLs files with JS come from [SeleniumCrawler](https://github.com/AndreuJove/seleniumCrawler).
+- HTMLs files without JS come from [mastercrawlerTFG](https://github.com/AndreuJove/mastercrawlerTFG). 
+- HTMLs files with JS come from [SeleniumCrawler](https://github.com/AndreuJove/seleniumCrawler).
+
 
 #### Output:
 - JSON file that contains all the dynamic percentages of the among of websites. The file will be saved in output_data directory as:<br />
