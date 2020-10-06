@@ -66,22 +66,27 @@ for t in group_domains:
 with open("output_data/dynamic_percentages_domains.json", 'w') as p:
     json.dump([{'dynamic_percentages': percentages_all_domain_classification}], p)
 
+"""
 
-path_to_domains_count = "../../mastercrawlerTFG/mastercrawler/output_data/domains_count.json"
+Extact the count of the available domains after scrapycrawler
+"""
+
+path_to_domains_count = "../../api_extraction/output_data/domains_count.json"
 with open(path_to_domains_count, "r") as l:
-    domains_count = json.load(l)
-
+    final_domains_count = json.load(l)
+    
 path = "/home/andreu/mastercrawlerTFG/mastercrawler/output_data/tools_for_crawling_js.json"
 with open(path, "r") as g:
     list_crawler_js = json.load(g)
-
+    
+final_domains_count[1]['Count']= [0]*len(final_domains_count[1]['Count'])
 
 for t in list_crawler_js:
     dom = t['final_url_tool'].split("://")[-1].split("/")[0].replace("www.", "").lower()
-    if dom in domains_count[0]['domains']:
-        index_domain = domains_count[0]['domains'].index(dom)
-        domains_count[1]['values_domains'][index_domain] +=1 
-
+    if dom in final_domains_count[0]['Domain']:
+        index_domain = final_domains_count[0]['Domain'].index(dom)
+        final_domains_count[1]['Count'][index_domain] +=1 
+final_domains_count
 
 with open("output_data/domains_count_satisfactory_websites.json", 'w') as f:
-    json.dump(domains_count, f)
+    json.dump(final_domains_count, f)
