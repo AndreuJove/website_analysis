@@ -65,3 +65,23 @@ for t in group_domains:
 # Save all the percentages of ecah domain to a json file:
 with open("output_data/dynamic_percentages_domains.json", 'w') as p:
     json.dump([{'dynamic_percentages': percentages_all_domain_classification}], p)
+
+
+path_to_domains_count = "../../mastercrawlerTFG/mastercrawler/output_data/domains_count.json"
+with open(path_to_domains_count, "r") as l:
+    domains_count = json.load(l)
+
+path = "/home/andreu/mastercrawlerTFG/mastercrawler/output_data/tools_for_crawling_js.json"
+with open(path, "r") as g:
+    list_crawler_js = json.load(g)
+
+
+for t in list_crawler_js:
+    dom = t['final_url_tool'].split("://")[-1].split("/")[0].replace("www.", "").lower()
+    if dom in domains_count[0]['domains']:
+        index_domain = domains_count[0]['domains'].index(dom)
+        domains_count[1]['values_domains'][index_domain] +=1 
+
+
+with open("output_data/domains_count_satisfactory_websites.json", 'w') as f:
+    json.dump(domains_count, f)
