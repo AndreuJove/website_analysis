@@ -1,92 +1,212 @@
-from utils import *
 import os
-import pandas as pd
+import json
 import argparse
-import sys
+import re
+import pandas as pd
+from htmlmin import minify
+from lxml.html.clean import Cleaner
+from lxml.etree import ParserError
 
-parser = argparse.ArgumentParser(description="Websites analysis")
-parser.add_argument('-input_percentage', '--p', type=int,
-                    help="Url API for extraction")
-args = parser.parse_args()
 
-if not args.p:
-    raise Exception("Input percentage has to be passed in coomand line.\nTry: $ python3 main.py -input_percentage 4")
+"""
+Python package functionalities:
+Comparation of HTMLs with and without JavaScript rendered of websites.
+"""
 
-list_htmls_js = os.listdir("../seleniumCrawler/htmls_js")
-df = pd.DataFrame(list_htmls_js, columns=['filename'])
-df['final_url'] = ""
-df['domain'] = ""
-df['percentage_of_change'] = ""
+def create_dataframe(data):
+    # Create the initial dataframe from manifest JSON.
+    # 7 FINAL COLUMNS OF DATAFRAME:
+    # ['final_url', 'id', 'name', 'first_url', 'path_file', 'domain', 'percentage_of_change'
+    df_data = pd.DataFrame(data)
+    df_data['domain'] = ""
+    df_data['percentage_of_change'] = ""
+    return df_data
 
-# Log for catching exceptions during the creation of the new dataframe:
-logf = open("download.log", "w")
+def building_df_with_percentages(df_tools, arguments_argparser):
+    # Replace df with the corrresponding values and get percentage of change:
+    for i, tool in df_tools.iterrows():
+        # Get the domain for each URL
+        df_tools.at[i, 'domain'] = tool['first_url'].split(
+            '//')[-1].split("/")[0].replace("www.", "").lower()
+        # Extract percentage of change
+        df_tools.at[i, 'percentage_of_change'] = extract_percentage(
+            tool, arguments_argparser)
+    return df_tools
 
-# Replace df with the corrresponding values and get percentage of change:
-for i, t in enumerate(df.iterrows()):
+def open_json(path):
+    # Open JSON file and return a the object as a dict:
+    with open(path, "r") as file:
+        return json.load(file)
+
+def write_json_file(data, path):
+    # Write on a json file a list of dictionaries:
+    with open(path, 'w') as file:
+        json.dump(data, file)
+
+def clean_and_minify_html(html):
+    # Function to clear html leaving only tags and content. Posterior minify.
+    cleaner = Cleaner(page_structure=True,
+                      safe_attrs_only=True, safe_attrs=frozenset())
+    html = re.sub(r"\bencoding='[-\w]+'", "", html)
+    html = re.sub("<\\?xml.*?\\?>", "", html)
+    html = cleaner.clean_html(html)
+    html = html.replace("\n", "").replace("\r", "").replace(
+        "\t", "").replace("\\n", "").replace("\\\n", "")
+    html = minify(html, remove_comments=True, remove_empty_space=True)
+    return html
+
+def extract_percentage(tool, arguments_argparser):
+    # Extract the html without JS:
+    tool_html_no_js = open_json(
+        f"{arguments_argparser.path_i_folder_htmls_no_js}/{tool['path_file']}")
+    # Remember: the tool_html_no_js has 2 keys ('id', 'htmls_js')
+
+    # Extract the html JS:
     try:
-        final_url, domain, percentage_of_change = extract_tool_from_json_and_parse(
-            t[1].filename)
-    except Exception as e:
-        logf.write(f"Failed in tool {str(t)}: {str(e)}\n\n")
-        continue
-    df.loc[i, 'final_url'] = final_url
-    df.loc[i, 'domain'] = domain
-    df.loc[i, 'percentage_of_change'] = percentage_of_change
+        tool_html_js = open_json(
+            f"{arguments_argparser.path_i_folder_htmls_js}/{tool['path_file']}")
+    except FileNotFoundError:
+        return None
+    # Remember: the tool_html_js has 2 keys ('id', 'htmls_js')
 
-# Replace null values and drop them and get the new dataframe with only dynamic sites:
-df.replace("", float("NaN"), inplace=True)
-df.dropna(subset=["percentage_of_change"], inplace=True)
-df_dynamic = df[df['percentage_of_change'] > args.p]
+    try:
+        # Try clean html no JS:
+        tool_html_no_js_cleaned = clean_and_minify_html(
+            tool_html_no_js['html_no_js'])
+    except ParserError:
+        return None
 
-# Safe all dynamic percentages about websites:
-with open("output_data/all_dynamic_percentages.json", 'w') as f:
-    json.dump(
-        [{'dynamic_percentages': df_dynamic['percentage_of_change'].tolist()}], f)
+    try:
+        # Clean html JS:
+        html_js_cleaned = clean_and_minify_html(tool_html_js['html_js'])
+    except ParserError:
+        return None
+    # Calculate percentage of change:
+    percentage = (1-(len(tool_html_no_js_cleaned)/len(html_js_cleaned)))*100
+    return percentage
 
-# Get classification about domains:
-path_json_file_domains = "../mastercrawlerTFG/mastercrawler/output_data/primary_classifcation_domains.json"
-with open(path_json_file_domains, "r") as l:
-    group_domains = json.load(l)
+def cleaning_df(df_uncleaned):
+    # Drop values null
+    df_non_na = df_uncleaned.dropna()
+    df_non_na = df_non_na.copy()
+    # Replace negative values for 0
+    df_non_na.loc[df_non_na.percentage_of_change <
+                  0, 'percentage_of_change'] = 0
+    return df_non_na
 
-# Extract specific percentage of each domain:
-percentages_all_domain_classification = []
-for t in group_domains:
-    name_grupation = list(t.keys())[0]
-    list_names_grupation = extract_value_from_list_of_dicts(
-        group_domains, name_grupation)
-    list_domains_of_a_group = []
-    for domain in list_names_grupation:
-        df_extraction = df_dynamic[df_dynamic['domain'] == domain]
-        item_domain = {domain: df_extraction['percentage_of_change'].tolist()}
-        list_domains_of_a_group.append(item_domain)
-    item_groupation = {name_grupation: list_domains_of_a_group}
-    percentages_all_domain_classification.append(item_groupation)
+def create_dict_website_minimum_year(tools_year):
+    # Create a dict with the first year of the each tool.
+    dict_web_year = {}
+    for tool in tools_year:
+        if tool['web']['homepage'] in dict_web_year.keys():
+            if dict_web_year[tool['web']['homepage']] > tool['year']:
+                dict_web_year[tool['web']['homepage']] = tool['year']
+        else:
+            dict_web_year[tool['web']['homepage']] = tool['year']
+    return dict_web_year
 
-# Save all the percentages of ecah domain to a json file:
-with open("output_data/dynamic_percentages_domains.json", 'w') as p:
-    json.dump([{'dynamic_percentages': percentages_all_domain_classification}], p)
+def match_websites_add_year(dict_website_year, df):
+    df = df.copy()
+    df["year"] = ""
+    # Match ['first_url'] and add the column fill the column year:
+    for i, tool in df.iterrows():
+        if tool['first_url'] in dict_website_year.keys():
+            df['year'][i] = dict_website_year[tool['first_url']]
+    return df
 
-"""
+def main(arguments):
+    # Open the manifest file from scrapycrawler.
+    manifest = open_json(arguments.path_i_file_manifest)
 
-Extact the count of the available domains after scrapycrawler
-"""
+    print(f"INFO: {len(manifest['tools_ok'])} are from Scrapy.")
+    # Create dataframe from tools
+    df_tools = create_dataframe(manifest['tools_ok'])
 
-path_to_domains_count = "../../api_extraction/output_data/domains_count.json"
-with open(path_to_domains_count, "r") as l:
-    final_domains_count = json.load(l)
-    
-path = "/home/andreu/mastercrawlerTFG/mastercrawler/output_data/tools_for_crawling_js.json"
-with open(path, "r") as g:
-    list_crawler_js = json.load(g)
-    
-final_domains_count[1]['Count']= [0]*len(final_domains_count[1]['Count'])
+    # Calculated percentage of change
+    print("INFO: Starting the calculation of the percentage of change.. \nESTIMATED TIME: 12min")
+    df_tools_percentages = building_df_with_percentages(df_tools, arguments)
 
-for t in list_crawler_js:
-    dom = t['final_url_tool'].split("://")[-1].split("/")[0].replace("www.", "").lower()
-    if dom in final_domains_count[0]['Domain']:
-        index_domain = final_domains_count[0]['Domain'].index(dom)
-        final_domains_count[1]['Count'][index_domain] +=1 
-final_domains_count
+    # Clean dataframe from null values (websites down)
+    df_cleaned = cleaning_df(df_tools_percentages)
 
-with open("output_data/domains_count_satisfactory_websites.json", 'w') as f:
-    json.dump(final_domains_count, f)
+    # Open file of tools matched with his year of publication
+    tools_year = open_json(arguments.path_i_file_tools_pub_year)
+
+    # Create a dict of website and the first year of that website.
+    dict_website_year = create_dict_website_minimum_year(tools_year)
+
+    # Add the column year to dataframe and match websites
+    final_df_year_websites = match_websites_add_year(dict_website_year, df_cleaned)
+
+    final_df_year_websites.to_json("final_1", orient="records")
+
+    final_df_year_websites.to_json(
+        f"{arguments.path_o_directory_data}/{arguments.o_filename}", orient="records")
+
+
+if __name__ == "__main__":
+
+    # Instance of the class ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="DESCRIPTION: Analysis of websites to determine the percentage of change between HTML with JS and HTMLs without JS.")
+
+    # Input directory of htmls without Javascript.
+    parser.add_argument(
+        '-path_i_folder_htmls_no_js',
+        type=str,
+        metavar="",
+        default="../mastercrawlerTFG/htmls_no_js",
+        help="Path of the directory that contains HTMLs with no JavaScript."
+    )
+
+    # Input directory of htmls with Javascript.
+    parser.add_argument(
+        '-path_i_folder_htmls_js',
+        type=str,
+        metavar="",
+        default="../seleniumCrawler/htmls_js",
+        help="Path of the directory that contains HTMLs with JavaScript."
+    )
+
+    # Input path of the input file of tools:
+    parser.add_argument(
+        '-path_i_file_manifest',
+        type=str,
+        metavar="",
+        default="../mastercrawlerTFG/output_data/manifest_tools.json",
+        help="Path of the input file of tools. "
+    )
+
+    # Input path of the input file of tools:
+    parser.add_argument(
+        '-path_i_file_tools_pub_year',
+        type=str,
+        metavar="",
+        default="tools_with_year.json",
+        help="Path of the tools that have a year of publication. "
+    )
+
+    # Ouput directory for data:
+    parser.add_argument(
+        '-path_o_directory_data',
+        type=str,
+        metavar="",
+        default="output_data_website_analysis",
+        help="Name of the output directory for the output data. Default: output_data_website_analysis. "
+    )
+
+    # # Output filename of stadistics
+    parser.add_argument(
+        '-o_filename',
+        type=str,
+        metavar="",
+        default="final_df_years_percentages.json",
+        help="Name of the output filename of this package. Default: final_df_years_percentages.json "
+    )
+
+    args = parser.parse_args()
+
+    if not os.path.isdir(args.path_o_directory_data):
+        os.mkdir(args.path_o_directory_data)
+
+    main(args)
