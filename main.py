@@ -1,12 +1,11 @@
 import os
+import logging
 import json
 import argparse
 import re
 import pandas as pd
 from htmlmin import minify
 from lxml.html.clean import Cleaner
-from lxml.etree import ParserError
-
 
 """
 Python package functionalities:
@@ -16,13 +15,13 @@ Comparation of HTMLs with and without JavaScript rendered of websites.
 def create_dataframe(data):
     # Create the initial dataframe from manifest JSON.
     # 7 FINAL COLUMNS OF DATAFRAME:
-    # ['final_url', 'id', 'name', 'first_url', 'path_file', 'domain', 'percentage_of_change'
+    # ['final_url', 'first_url', 'path_file', 'domain', 'percentage_of_change'
     df_data = pd.DataFrame(data)
     df_data['domain'] = ""
     df_data['percentage_of_change'] = ""
     return df_data
 
-def building_df_with_percentages(df_tools, arguments_argparser):
+def building_df_with_percentages(df_tools, arguments_argparser, logger):
     # Replace df with the corrresponding values and get percentage of change:
     for i, tool in df_tools.iterrows():
         # Get the domain for each URL
@@ -30,7 +29,7 @@ def building_df_with_percentages(df_tools, arguments_argparser):
             '//')[-1].split("/")[0].replace("www.", "").lower()
         # Extract percentage of change
         df_tools.at[i, 'percentage_of_change'] = extract_percentage(
-            tool, arguments_argparser)
+            tool, arguments_argparser, logger)
     return df_tools
 
 def open_json(path):
@@ -55,32 +54,25 @@ def clean_and_minify_html(html):
     html = minify(html, remove_comments=True, remove_empty_space=True)
     return html
 
-def extract_percentage(tool, arguments_argparser):
+def extract_percentage(tool, arguments_argparser, logger):
     # Extract the html without JS:
     tool_html_no_js = open_json(
         f"{arguments_argparser.path_i_folder_htmls_no_js}/{tool['path_file']}")
-    # Remember: the tool_html_no_js has 2 keys ('id', 'htmls_js')
-
-    # Extract the html JS:
     try:
+        # Open the html JS:
         tool_html_js = open_json(
             f"{arguments_argparser.path_i_folder_htmls_js}/{tool['path_file']}")
-    except FileNotFoundError:
-        return None
-    # Remember: the tool_html_js has 2 keys ('id', 'htmls_js')
 
-    try:
-        # Try clean html no JS:
+        # Clean HTML no JS:
         tool_html_no_js_cleaned = clean_and_minify_html(
             tool_html_no_js['html_no_js'])
-    except ParserError:
+
+        # Clean HTML JS:
+        html_js_cleaned = clean_and_minify_html(tool_html_js['html_js'])
+    except Exception as exception:
+        logger.error(f"Exception raised: {str(exception)}\t in {tool}")
         return None
 
-    try:
-        # Clean html JS:
-        html_js_cleaned = clean_and_minify_html(tool_html_js['html_js'])
-    except ParserError:
-        return None
     # Calculate percentage of change:
     percentage = (1-(len(tool_html_no_js_cleaned)/len(html_js_cleaned)))*100
     return percentage
@@ -99,7 +91,7 @@ def create_dict_website_minimum_year(tools_year):
     dict_web_year = {}
     for tool in tools_year:
         if tool['web']['homepage'] in dict_web_year.keys():
-            if dict_web_year[tool['web']['homepage']] > tool['year']:
+            if dict_web_year[tool['web']['homepage']] < tool['year']:
                 dict_web_year[tool['web']['homepage']] = tool['year']
         else:
             dict_web_year[tool['web']['homepage']] = tool['year']
@@ -115,16 +107,37 @@ def match_websites_add_year(dict_website_year, df):
     return df
 
 def main(arguments):
+    # Set up logging to file
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+                        datefmt='%m-%d %y %H:%M:%S',
+                        filename=f'{args.log_file_name}',
+                        filemode='w')
+    # Define a Handler which writes INFO messages or higher to the sys.stderr
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+
+    # Set a format which is simpler for console use.
+    formatter = logging.Formatter('%(levelname)-12s %(filename)-12s %(message)s')
+
+    # Tell the handler to use this format.
+    console.setFormatter(formatter)
+
+    # Add the handler to the root logger.
+    logging.getLogger().addHandler(console)
+
     # Open the manifest file from scrapycrawler.
     manifest = open_json(arguments.path_i_file_manifest)
 
-    print(f"INFO: {len(manifest['tools_ok'])} are from Scrapy.")
+
+    logging.info("{len(manifest['tools_ok'])} total websites from Scrapy.")
     # Create dataframe from tools
     df_tools = create_dataframe(manifest['tools_ok'])
 
+
     # Calculated percentage of change
-    print("INFO: Starting the calculation of the percentage of change.. \nESTIMATED TIME: 12min")
-    df_tools_percentages = building_df_with_percentages(df_tools, arguments)
+    logging.info("Starting the calculation of the percentage of change.. \nESTIMATED TIME: 12min")
+    df_tools_percentages = building_df_with_percentages(df_tools, arguments, logging)
 
     # Clean dataframe from null values (websites down)
     df_cleaned = cleaning_df(df_tools_percentages)
@@ -138,71 +151,79 @@ def main(arguments):
     # Add the column year to dataframe and match websites
     final_df_year_websites = match_websites_add_year(dict_website_year, df_cleaned)
 
-    final_df_year_websites.to_json("final_1", orient="records")
-
     final_df_year_websites.to_json(
         f"{arguments.path_o_directory_data}/{arguments.o_filename}", orient="records")
 
+    logging.info(f"Saved dataframe in {arguments.path_o_directory_data}/{arguments.o_filename}")
 
 if __name__ == "__main__":
 
     # Instance of the class ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="DESCRIPTION: Analysis of websites to determine the percentage of change between HTML with JS and HTMLs without JS.")
+        description="Determine the percentage of change between HTML with JS and HTMLs without JS.")
 
     # Input directory of htmls without Javascript.
     parser.add_argument(
-        '-path_i_folder_htmls_no_js',
-        type=str,
-        metavar="",
-        default="../mastercrawlerTFG/htmls_no_js",
-        help="Path of the directory that contains HTMLs with no JavaScript."
-    )
+                        '-path_i_folder_htmls_no_js',
+                        type=str,
+                        metavar="",
+                        default="../mastercrawlerTFG/htmls_no_js",
+                        help="Path of the directory that contains HTMLs with no JavaScript."
+                        )
 
     # Input directory of htmls with Javascript.
     parser.add_argument(
-        '-path_i_folder_htmls_js',
-        type=str,
-        metavar="",
-        default="../seleniumCrawler/htmls_js",
-        help="Path of the directory that contains HTMLs with JavaScript."
-    )
+                        '-path_i_folder_htmls_js',
+                        type=str,
+                        metavar="",
+                        default="../seleniumCrawler/htmls_js",
+                        help="Path of the directory that contains HTMLs with JavaScript."
+                        )
 
     # Input path of the input file of tools:
     parser.add_argument(
-        '-path_i_file_manifest',
-        type=str,
-        metavar="",
-        default="../mastercrawlerTFG/output_data/manifest_tools.json",
-        help="Path of the input file of tools. "
-    )
+                        '-path_i_file_manifest',
+                        type=str,
+                        metavar="",
+                        default="../mastercrawlerTFG/output_data/manifest_tools_scrapy.json",
+                        help="Path of the input file of tools. "
+                        )
 
     # Input path of the input file of tools:
     parser.add_argument(
-        '-path_i_file_tools_pub_year',
-        type=str,
-        metavar="",
-        default="tools_with_year.json",
-        help="Path of the tools that have a year of publication. "
-    )
+                        '-path_i_file_tools_pub_year',
+                        type=str,
+                        metavar="",
+                        default="tools_with_year.json",
+                        help="Path of the tools that have a year of publication. "
+                        )
 
     # Ouput directory for data:
     parser.add_argument(
-        '-path_o_directory_data',
-        type=str,
-        metavar="",
-        default="output_data_website_analysis",
-        help="Name of the output directory for the output data. Default: output_data_website_analysis. "
-    )
+                        '-path_o_directory_data',
+                        type=str,
+                        metavar="",
+                        default="output_data_website_analysis",
+                        help="Name of data output directory. Default: output_data_website_analysis."
+                        )
 
     # # Output filename of stadistics
     parser.add_argument(
-        '-o_filename',
-        type=str,
-        metavar="",
-        default="final_df_years_percentages.json",
-        help="Name of the output filename of this package. Default: final_df_years_percentages.json "
-    )
+                        '-o_filename',
+                        type=str,
+                        metavar="",
+                        default="df_years_percentages.json",
+                        help="Name of output filename. Default: df_years_percentages.json "
+                        )
+
+    # Add the argument of output's filename of log.
+    parser.add_argument(
+                        '-log_file_name',
+                        type=str,
+                        metavar="",
+                        default="websites_analysis",
+                        help="Name of the output log file of the program"
+                        )
 
     args = parser.parse_args()
 
