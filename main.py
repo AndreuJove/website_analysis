@@ -43,7 +43,7 @@ def write_json_file(data, path):
         json.dump(data, file)
 
 def clean_and_minify_html(html):
-    # Function to clear html leaving only tags and content. Posterior minify.
+    # Function to clear html leaving only tags and content.
     cleaner = Cleaner(page_structure=True,
                       safe_attrs_only=True, safe_attrs=frozenset())
     html = re.sub(r"\bencoding='[-\w]+'", "", html)
@@ -51,6 +51,7 @@ def clean_and_minify_html(html):
     html = cleaner.clean_html(html)
     html = html.replace("\n", "").replace("\r", "").replace(
         "\t", "").replace("\\n", "").replace("\\\n", "")
+    # Minify the html to extract delete comments
     html = minify(html, remove_comments=True, remove_empty_space=True)
     return html
 
@@ -87,24 +88,24 @@ def cleaning_df(df_uncleaned):
     return df_non_na
 
 def create_dict_website_minimum_year(tools_year):
-    # Create a dict with the first year of the each tool.
+    # Get all the years of a website. From tools with year.
     dict_web_year = {}
     for tool in tools_year:
-        if tool['web']['homepage'] in dict_web_year.keys():
-            if dict_web_year[tool['web']['homepage']] < tool['year']:
-                dict_web_year[tool['web']['homepage']] = tool['year']
-        else:
-            dict_web_year[tool['web']['homepage']] = tool['year']
+        if tool['year']:
+            dict_web_year.setdefault(tool['web']['homepage'], []).append(tool['year'])
+    for item in dict_web_year.items():
+        item[1].sort()
     return dict_web_year
 
-def match_websites_add_year(dict_website_year, df):
-    df = df.copy()
-    df["year"] = ""
-    # Match ['first_url'] and add the column fill the column year:
-    for i, tool in df.iterrows():
+def match_websites_add_year(dict_website_year, df_input):
+    # Copy the df to avoid warning from Pandas
+    df_copied = df_input.copy()
+    df_copied["year"] = ""
+    # Match ['first_url'] and add the column value of the year:
+    for i, tool in df_copied.iterrows():
         if tool['first_url'] in dict_website_year.keys():
-            df['year'][i] = dict_website_year[tool['first_url']]
-    return df
+            df_copied['year'][i] = dict_website_year[tool['first_url']]
+    return df_copied
 
 def main(arguments):
     # Set up logging to file
@@ -129,11 +130,9 @@ def main(arguments):
     # Open the manifest file from scrapycrawler.
     manifest = open_json(arguments.path_i_file_manifest)
 
-
-    logging.info("{len(manifest['tools_ok'])} total websites from Scrapy.")
+    logging.info(f"{len(manifest['tools_ok'])} total websites from Scrapy.")
     # Create dataframe from tools
     df_tools = create_dataframe(manifest['tools_ok'])
-
 
     # Calculated percentage of change
     logging.info("Starting the calculation of the percentage of change.. \nESTIMATED TIME: 12min")
@@ -221,7 +220,7 @@ if __name__ == "__main__":
                         '-log_file_name',
                         type=str,
                         metavar="",
-                        default="websites_analysis",
+                        default="websites_analysis.log",
                         help="Name of the output log file of the program"
                         )
 
