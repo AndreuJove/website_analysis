@@ -13,10 +13,10 @@ Comparation of HTMLs with and without JavaScript rendered of websites.
 """
 
 def create_dataframe(data):
-    # Create the initial dataframe from manifest JSON.
-    # 7 FINAL COLUMNS OF DATAFRAME:
-    # ['final_url', 'first_url', 'path_file', 'domain', 'percentage_of_change'
+    # Transform manifest JSON to dataframe
+    # Columns df from data:  ['final_url', 'first_url', 'path_file', 'domain', 'percentage_of_change']
     df_data = pd.DataFrame(data)
+    # Create new columns of dataframe:
     df_data['domain'] = ""
     df_data['percentage_of_change'] = ""
     return df_data
