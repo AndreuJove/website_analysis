@@ -3,12 +3,12 @@
 - This software compares HTMLs with and without JavaScript of the same website. After cleaning and minifying them. <br />
 - It extracts the percentages of change of the website comparing both HTMLs.  <br />
 - This is used to understand the importance of JavaScript in a group of websites. <br />
-<br />
+
 #### Input:
 - JSON files that contain the HTML with and without JavaScript rendered of the same website. 
 - HTMLs files without JS come from [mastercrawlerTFG](https://github.com/AndreuJove/mastercrawlerTFG). 
 - HTMLs files with JS come from [SeleniumCrawler](https://github.com/AndreuJove/seleniumCrawler).
-<br />
+
 #### Output:
 - JSON file that contains all the dynamic percentages of the among of websites. <br />
 The file will be saved in output_data directory as: final_df_years_percentages.json<br />
